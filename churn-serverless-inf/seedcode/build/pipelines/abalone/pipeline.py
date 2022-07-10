@@ -197,7 +197,7 @@ def get_pipeline(
         content_types=["text/csv"],
         response_types=["text/csv"],
         model_package_group_name=model_package_group_name,
-        approval_status=model_approval_status,
+        approval_status="Approved",
     )
 
     #sklearn_model = SKLearnModel(
