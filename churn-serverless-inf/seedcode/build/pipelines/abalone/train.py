@@ -27,7 +27,7 @@ def train(input_files):
         filename = "knn_model.sav"
         with open(os.path.join(args.model_dir, filename),"wb") as f:
             pickle.dump(model, f)
-        #pickle.dump(model, os.path.join(args.model_dir, filename))
+        
         print('Training complete.')
 
     except Exception as e:

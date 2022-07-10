@@ -130,8 +130,11 @@ def get_pipeline(
     training_instance_type = ParameterString(
         name="TrainingInstanceType", default_value="ml.m5.xlarge"
     )
+    #model_approval_status = ParameterString(
+    #    name="ModelApprovalStatus", default_value="PendingManualApproval"
+    #)
     model_approval_status = ParameterString(
-        name="ModelApprovalStatus", default_value="PendingManualApproval"
+        name="ModelApprovalStatus", default_value="Approved"
     )
     input_data = ParameterString(
         name="InputDataUrl",
