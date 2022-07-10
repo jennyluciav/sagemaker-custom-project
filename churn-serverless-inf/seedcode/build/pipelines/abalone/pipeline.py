@@ -140,7 +140,7 @@ def get_pipeline(
     # processing step for feature engineering
     sklearn_processor = SKLearnProcessor(
         framework_version="0.23-1",
-        instance_type=processing_instance_type,
+        instance_type="ml.m5.xlarge",
         instance_count=processing_instance_count,
         base_job_name=f"{base_job_prefix}/sklearn-recommender-preprocess",
         sagemaker_session=sagemaker_session,
@@ -158,30 +158,14 @@ def get_pipeline(
 
     # training step for generating model artifacts
     model_path = f"s3://{sagemaker_session.default_bucket()}/{base_job_prefix}/RecommenderTrain"
-    image_uri = sagemaker.image_uris.retrieve(
-        framework="xgboost",
-        region=region,
-        version="1.0-1",
-        py_version="py3",
-        instance_type=training_instance_type,
-    )
-    xgb_train = Estimator(
-        image_uri=image_uri,
-        instance_type=training_instance_type,
-        instance_count=1,
-        output_path=model_path,
-        base_job_name=f"{base_job_prefix}/abalone-train",
-        sagemaker_session=sagemaker_session,
-        role=role,
-    )
 
     FRAMEWORK_VERSION = "1.0-1"
-    script_path = os.path.join(BASE_DIR, "scikit_learn_iris.py")
+    script_path = os.path.join(BASE_DIR, "train.py")
 
     sklearn_train = SKLearn(
         entry_point=script_path,
         framework_version=FRAMEWORK_VERSION,
-        instance_type="ml.c4.xlarge",
+        instance_type="ml.m4.xlarge",
         sagemaker_session=sagemaker_session,
         role=role,
     )
@@ -197,17 +181,20 @@ def get_pipeline(
             ),
         },
     )
-
+    
+    '''
     step_register = RegisterModel(
         name="RegisterRecommenderModel",
         estimator=sklearn_train,
         model_data=step_train.properties.ModelArtifacts.S3ModelArtifacts,
         inference_instances=["ml.t2.medium", "ml.m5.large"],
         transform_instances=["ml.m5.large"],
+        content_types=None,
+        response_types=None,
         model_package_group_name=model_package_group_name,
         approval_status=model_approval_status,
     )
-
+    '''
     # pipeline instance
     pipeline = Pipeline(
         name=pipeline_name,
@@ -218,7 +205,7 @@ def get_pipeline(
             model_approval_status,
             input_data,
         ],
-        steps=[step_process, step_train, step_register],
+        steps=[step_process, step_train],
         sagemaker_session=sagemaker_session,
     )
     return pipeline

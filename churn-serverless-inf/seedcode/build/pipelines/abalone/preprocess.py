@@ -31,7 +31,7 @@ if __name__ == "__main__":
     s3.Bucket(bucket).download_file(key, fn)
 
     logger.debug("Reading downloaded data.")
-    df = pd.read_csv(fn)
+    df = pd.read_csv(fn, error_bad_lines = False)
     os.unlink(fn)
 
     logger.info("Feature engineering average_rating column")
