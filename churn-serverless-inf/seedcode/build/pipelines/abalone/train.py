@@ -59,5 +59,9 @@ if __name__ == '__main__':
                           'the data specification in S3 was incorrectly specified or the role specified\n' +
                           'does not have permission to access the data.').format(args.train, "train"))
     raw_data = [ np.load(file_input) for file_input in input_files ]
+
+    logger.info("Shapes:")
+    logger.info(raw_data.shape)
+
     train(raw_data)
     sys.exit(0)
