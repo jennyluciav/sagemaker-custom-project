@@ -1,12 +1,16 @@
+import argparse
+import logging
 import os
+import pickle
 import sys
 import traceback
-import argparse
 import numpy as np
 import pandas as pd
 from sklearn import neighbors
-import pickle
 
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+logger.addHandler(logging.StreamHandler())
 
 def train(input_files):
     print('Starting the training.')
@@ -42,6 +46,8 @@ if __name__ == '__main__':
     # Take the set of files and read them all into a single pandas dataframe
     input_files = [ os.path.join(args.train, file) for file in os.listdir(args.train) ]
 
+    logger.info("Input files:")
+    logger.info(input_files)
     if len(input_files) == 0:
         raise ValueError(('There are no files in {}.\n' +
                           'This usually indicates that the channel ({}) was incorrectly specified,\n' +

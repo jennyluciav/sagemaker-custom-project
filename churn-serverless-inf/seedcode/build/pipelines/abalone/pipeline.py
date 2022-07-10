@@ -177,7 +177,7 @@ def get_pipeline(
                 s3_data=step_process.properties.ProcessingOutputConfig.Outputs[
                     "train"
                 ].S3Output.S3Uri,
-                content_type="text/csv",
+                content_type="npy",
             ),
         },
     )
