@@ -44,6 +44,7 @@ from sagemaker.workflow.steps import (
 from sagemaker.workflow.step_collections import RegisterModel
 
 from sagemaker.sklearn.estimator import SKLearn
+from sagemaker.sklearn.model import SKLearnModel
 
 
 BASE_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -170,16 +171,6 @@ def get_pipeline(
         role=role,
     )
 
-    import logging
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
-    logger.addHandler(logging.StreamHandler())
-    
-    logger.info("path SOURCE========")
-    logger.info(step_process.properties.ProcessingOutputConfig.Outputs[
-                    "train"
-                ].S3Output.S3Uri)
-
     step_train = TrainingStep(
         name="TrainRecommenderModel",
         estimator=sklearn_train,
@@ -193,19 +184,28 @@ def get_pipeline(
         },
     )
     
-    '''
+
     step_register = RegisterModel(
         name="RegisterRecommenderModel",
         estimator=sklearn_train,
         model_data=step_train.properties.ModelArtifacts.S3ModelArtifacts,
         inference_instances=["ml.t2.medium", "ml.m5.large"],
         transform_instances=["ml.m5.large"],
-        content_types=None,
-        response_types=None,
+        content_types=["text/csv"],
+        response_types=["text/csv"],
         model_package_group_name=model_package_group_name,
         approval_status=model_approval_status,
     )
-    '''
+
+    #sklearn_model = SKLearnModel(
+    #                model_data="s3://bucket/model.tar.gz",
+    #                role=role,
+    #                entry_point="predictor.py",
+    #                framework_version="0.20.0"
+    #)
+
+    #predictor = sklearn_model.deploy(instance_type="ml.c4.xlarge", initial_instance_count=1)
+
     # pipeline instance
     pipeline = Pipeline(
         name=pipeline_name,
@@ -216,7 +216,7 @@ def get_pipeline(
             model_approval_status,
             input_data,
         ],
-        steps=[step_process, step_train],
+        steps=[step_process, step_train, step_register],
         sagemaker_session=sagemaker_session,
     )
     return pipeline
