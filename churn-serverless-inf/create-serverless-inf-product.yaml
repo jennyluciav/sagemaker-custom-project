@@ -57,7 +57,7 @@ Parameters:
   
   SageMakerProjectsProjectNameParameter:
     Type: String
-    Default: serverless-inf
+    Default: churn-serverless-inf
     Description: Project folder inside of the GitHub repo for this project
 
 Metadata: 
