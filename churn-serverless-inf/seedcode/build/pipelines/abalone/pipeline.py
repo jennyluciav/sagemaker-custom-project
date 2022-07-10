@@ -169,6 +169,17 @@ def get_pipeline(
         sagemaker_session=sagemaker_session,
         role=role,
     )
+
+    import logging
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    logger.addHandler(logging.StreamHandler())
+    
+    logger.info("path SOURCE========")
+    logger.info(step_process.properties.ProcessingOutputConfig.Outputs[
+                    "train"
+                ].S3Output.S3Uri)
+
     step_train = TrainingStep(
         name="TrainRecommenderModel",
         estimator=sklearn_train,
