@@ -54,4 +54,4 @@ if __name__ == "__main__":
     features = min_max_scaler.fit_transform(features)
 
     logger.info("Writing out datasets to %s.", base_dir)
-    pd.DataFrame(features).to_csv(f"{base_dir}/train/train.npy")
+    np.save(f"{base_dir}/train/train.npy", features)
