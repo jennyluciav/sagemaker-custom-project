@@ -53,8 +53,8 @@ Parameters:
     Type: Number
     Description: The maximum number of concurrent endpoint invocations
     MinValue: 1
-    MaxValue: 50
-    Default: 20
+    MaxValue: 10
+    Default: 5
 
 Conditions:
   IsProdEnv: !Equals 
