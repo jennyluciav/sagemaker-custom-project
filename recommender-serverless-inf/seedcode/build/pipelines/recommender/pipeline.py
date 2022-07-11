@@ -1,4 +1,4 @@
-"""Example workflow pipeline script for abalone pipeline.
+"""Example workflow pipeline script for recommender pipeline.
 
                                                . -RegisterModel
                                               .
@@ -42,9 +42,6 @@ from sagemaker.workflow.steps import (
     TrainingStep,
 )
 from sagemaker.workflow.step_collections import RegisterModel
-
-from sagemaker.sklearn.estimator import SKLearn
-from sagemaker.sklearn.model import SKLearnModel
 
 
 BASE_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -104,11 +101,11 @@ def get_pipeline(
     sagemaker_project_arn=None,
     role=None,
     default_bucket=None,
-    model_package_group_name="RecommenderPackageGroup",
-    pipeline_name="RecommenderPipeline",
-    base_job_prefix="BookRecommendation",
+    model_package_group_name="RecommenderBookPackageGroup",
+    pipeline_name="RecommenderBookPipeline",
+    base_job_prefix="Recommender",
 ):
-    """Gets a SageMaker ML Pipeline instance working with on abalone data.
+    """Gets a SageMaker ML Pipeline instance working with on recommender data.
 
     Args:
         region: AWS region to create and run the pipeline.
@@ -130,31 +127,30 @@ def get_pipeline(
     training_instance_type = ParameterString(
         name="TrainingInstanceType", default_value="ml.m5.xlarge"
     )
-    #model_approval_status = ParameterString(
-    #    name="ModelApprovalStatus", default_value="PendingManualApproval"
-    #)
     model_approval_status = ParameterString(
-        name="ModelApprovalStatus", default_value="Approved"
+        name="ModelApprovalStatus", default_value="PendingManualApproval"
     )
     input_data = ParameterString(
         name="InputDataUrl",
-        default_value=f"s3://recommendation-data-sm/data/books.csv",
+        default_value=f"s3://recommendation-data-sm/data/recommender-dataset.csv",
     )
 
     # processing step for feature engineering
     sklearn_processor = SKLearnProcessor(
         framework_version="0.23-1",
-        instance_type="ml.m5.xlarge",
+        instance_type=processing_instance_type,
         instance_count=processing_instance_count,
         base_job_name=f"{base_job_prefix}/sklearn-recommender-preprocess",
         sagemaker_session=sagemaker_session,
         role=role,
     )
     step_process = ProcessingStep(
-        name="PreprocessRecommendationData",
+        name="PreprocessRecommenderData",
         processor=sklearn_processor,
         outputs=[
             ProcessingOutput(output_name="train", source="/opt/ml/processing/train"),
+            ProcessingOutput(output_name="validation", source="/opt/ml/processing/validation"),
+            ProcessingOutput(output_name="test", source="/opt/ml/processing/test"),
         ],
         code=os.path.join(BASE_DIR, "preprocess.py"),
         job_arguments=["--input-data", input_data],
@@ -162,52 +158,125 @@ def get_pipeline(
 
     # training step for generating model artifacts
     model_path = f"s3://{sagemaker_session.default_bucket()}/{base_job_prefix}/RecommenderTrain"
-
-    FRAMEWORK_VERSION = "1.0-1"
-    script_path = os.path.join(BASE_DIR, "train.py")
-
-    sklearn_train = SKLearn(
-        entry_point=script_path,
-        framework_version=FRAMEWORK_VERSION,
-        instance_type="ml.m4.xlarge",
+    image_uri = sagemaker.image_uris.retrieve(
+        framework="xgboost",
+        region=region,
+        version="1.0-1",
+        py_version="py3",
+        instance_type=training_instance_type,
+    )
+    xgb_train = Estimator(
+        image_uri=image_uri,
+        instance_type=training_instance_type,
+        instance_count=1,
+        output_path=model_path,
+        base_job_name=f"{base_job_prefix}/recommender-train",
         sagemaker_session=sagemaker_session,
         role=role,
     )
-
+    xgb_train.set_hyperparameters(
+        objective="reg:linear",
+        num_round=50,
+        max_depth=5,
+        eta=0.2,
+        gamma=4,
+        min_child_weight=6,
+        subsample=0.7,
+        silent=0,
+    )
     step_train = TrainingStep(
         name="TrainRecommenderModel",
-        estimator=sklearn_train,
+        estimator=xgb_train,
         inputs={
             "train": TrainingInput(
                 s3_data=step_process.properties.ProcessingOutputConfig.Outputs[
                     "train"
                 ].S3Output.S3Uri,
-                content_type="npy",
+                content_type="text/csv",
+            ),
+            "validation": TrainingInput(
+                s3_data=step_process.properties.ProcessingOutputConfig.Outputs[
+                    "validation"
+                ].S3Output.S3Uri,
+                content_type="text/csv",
             ),
         },
     )
-    
 
-    step_register = RegisterModel(
-        name="RegisterRecommenderModel",
-        estimator=sklearn_train,
-        model_data=step_train.properties.ModelArtifacts.S3ModelArtifacts,
-        inference_instances=["ml.t2.medium", "ml.m5.large"],
-        transform_instances=["ml.m5.large"],
-        content_types=["text/csv"],
-        response_types=["text/csv"],
-        model_package_group_name=model_package_group_name,
-        approval_status="Approved",
+    # processing step for evaluation
+    script_eval = ScriptProcessor(
+        image_uri=image_uri,
+        command=["python3"],
+        instance_type=processing_instance_type,
+        instance_count=1,
+        base_job_name=f"{base_job_prefix}/script-recommender-eval",
+        sagemaker_session=sagemaker_session,
+        role=role,
+    )
+    evaluation_report = PropertyFile(
+        name="RecommenderEvaluationReport",
+        output_name="evaluation",
+        path="evaluation.json",
+    )
+    step_eval = ProcessingStep(
+        name="EvaluateRecommenderModel",
+        processor=script_eval,
+        inputs=[
+            ProcessingInput(
+                source=step_train.properties.ModelArtifacts.S3ModelArtifacts,
+                destination="/opt/ml/processing/model",
+            ),
+            ProcessingInput(
+                source=step_process.properties.ProcessingOutputConfig.Outputs[
+                    "test"
+                ].S3Output.S3Uri,
+                destination="/opt/ml/processing/test",
+            ),
+        ],
+        outputs=[
+            ProcessingOutput(output_name="evaluation", source="/opt/ml/processing/evaluation"),
+        ],
+        code=os.path.join(BASE_DIR, "evaluate.py"),
+        property_files=[evaluation_report],
     )
 
-    #sklearn_model = SKLearnModel(
-    #                model_data="s3://bucket/model.tar.gz",
-    #                role=role,
-    #                entry_point="predictor.py",
-    #                framework_version="0.20.0"
-    #)
+    # register model step that will be conditionally executed
+    model_metrics = ModelMetrics(
+        model_statistics=MetricsSource(
+            s3_uri="{}/evaluation.json".format(
+                step_eval.arguments["ProcessingOutputConfig"]["Outputs"][0]["S3Output"]["S3Uri"]
+            ),
+            content_type="application/json"
+        )
+    )
+    step_register = RegisterModel(
+        name="RegisterRecommenderModel",
+        estimator=xgb_train,
+        model_data=step_train.properties.ModelArtifacts.S3ModelArtifacts,
+        content_types=["text/csv"],
+        response_types=["text/csv"],
+        inference_instances=["ml.t2.medium", "ml.m5.large"],
+        transform_instances=["ml.m5.large"],
+        model_package_group_name=model_package_group_name,
+        approval_status=model_approval_status,
+        model_metrics=model_metrics,
+    )
 
-    #predictor = sklearn_model.deploy(instance_type="ml.c4.xlarge", initial_instance_count=1)
+    # condition step for evaluating model quality and branching execution
+    cond_lte = ConditionLessThanOrEqualTo(
+        left=JsonGet(
+            step=step_eval,
+            property_file=evaluation_report,
+            json_path="regression_metrics.mse.value"
+        ),
+        right=6.0,
+    )
+    step_cond = ConditionStep(
+        name="CheckMSERecommenderEvaluation",
+        conditions=[cond_lte],
+        if_steps=[step_register],
+        else_steps=[],
+    )
 
     # pipeline instance
     pipeline = Pipeline(
@@ -219,7 +288,7 @@ def get_pipeline(
             model_approval_status,
             input_data,
         ],
-        steps=[step_process, step_train, step_register],
+        steps=[step_process, step_train, step_eval, step_cond],
         sagemaker_session=sagemaker_session,
     )
     return pipeline
