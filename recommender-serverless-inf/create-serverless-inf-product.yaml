@@ -131,7 +131,7 @@ Resources:
   BootstrapS3Bucket:
     Type: AWS::S3::Bucket
     Properties: 
-      BucketName: !Join ['-',['sm-project-serverlessinf-example', !Select [4, !Split ['-', !Select [2, !Split ['/', !Ref 'AWS::StackId']]]]]]
+      BucketName: 'book-recommender-serverlessinf'
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
