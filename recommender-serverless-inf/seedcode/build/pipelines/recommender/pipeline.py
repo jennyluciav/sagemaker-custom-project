@@ -132,7 +132,7 @@ def get_pipeline(
     )
     input_data = ParameterString(
         name="InputDataUrl",
-        default_value=f"s3://recommendation-data-sm/data/recommender-dataset.csv",
+        default_value=f"s3://book-recommender-serverlessinf/data/recommender-dataset.csv",
     )
 
     # processing step for feature engineering
