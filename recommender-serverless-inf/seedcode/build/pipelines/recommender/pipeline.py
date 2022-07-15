@@ -38,8 +38,9 @@ from sagemaker.workflow.conditions import (
 )
 from sagemaker.workflow.condition_step import (
     ConditionStep,
-    JsonGet,
+    #JsonGet,
 )
+from sagemaker.workflow.functions import JsonGet
 from sagemaker.model_metrics import (
     MetricsSource,
     ModelMetrics,
@@ -55,6 +56,9 @@ from sagemaker.workflow.steps import (
     TrainingStep,
 )
 from sagemaker.workflow.step_collections import RegisterModel
+
+from sagemaker.model import Model
+from sagemaker.pipeline import PipelineModel
 
 
 BASE_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -116,10 +120,12 @@ def get_pipeline(
         name="InputDataUrl",
         default_value=f"s3://sagemaker-eu-west-1-948014026119/data/RawData.csv",  # Change this to point to the s3 location of your raw input data.
     )
-
+    
+    framework_version = "0.23-1"
+    
     # Processing step for feature engineering
     sklearn_processor = SKLearnProcessor(
-        framework_version="0.23-1",
+        framework_version=framework_version,
         instance_type=processing_instance_type,
         instance_count=processing_instance_count,
         base_job_name=f"{base_job_prefix}/sklearn-Recommender-preprocess",  # choose any name
@@ -160,7 +166,7 @@ def get_pipeline(
     )
     xgb_train.set_hyperparameters(
         objective="binary:logistic",
-        num_round=50,
+        num_round=30,
         max_depth=5,
         eta=0.2,
         gamma=4,
@@ -255,11 +261,12 @@ def get_pipeline(
     # Condition step for evaluating model quality and branching execution
     cond_lte = ConditionGreaterThanOrEqualTo(  # You can change the condition here
         left=JsonGet(
-            step=step_eval,
+            #step=step_eval,
+            step_name="RecommenderEval",
             property_file=evaluation_report,
             json_path="binary_classification_metrics.accuracy.value",  # This should follow the structure of your report_dict defined in the evaluate.py file.
         ),
-        right=0.8,  # You can change the threshold here
+        right=0.7,  # You can change the threshold here
     )
     step_cond = ConditionStep(
         name="RecommenderAccuracyCond",
