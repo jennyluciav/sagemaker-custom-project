@@ -2,6 +2,6 @@
   "Parameters": {
     "StageName": "staging",
     "MemorySizeInMB": "2048",
-    "MaxConcurrency": "20"
+    "MaxConcurrency": "10"
   }
 }
